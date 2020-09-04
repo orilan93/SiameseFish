@@ -1,0 +1,9 @@
+"""
+Configurations for the system.
+"""
+
+# BATCH_SIZE = 8
+IMG_SIZE = 224  # 224 #416 #105
+DESCRIPTOR_SIZE = 128  # 128
+NUM_CHANNELS = 3
+IMG_SHAPE = (IMG_SIZE, IMG_SIZE) if NUM_CHANNELS is 1 else (IMG_SIZE, IMG_SIZE, 3)
