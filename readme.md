@@ -30,8 +30,11 @@ A brief guidance on how to configure the system.
 
 1. Configure and run data_extraction.py to extract the images that are useful from the drive.
 2. Configure and run preprocess_data.py to preprocess the images ready for training.
+   
+(Skip above points if dataset is already ready.)
+
 3. Configure and run embeddings.py to train the embedding network.
-4. Configure and run distance_classifier.py to train and evaluate the classifier.
+4. Configure and run knn_classifier.py to evaluate the classifier.
 
 ## Experiments
 
@@ -44,7 +47,7 @@ Main modules:
 - data.py contains functions for retrieving and manipulating data.
 - data_extraction.py extracts data from the drive.
 - direction_labeler.py is a tool for labeling the direction of the fish in an efficient manner.
-- distance_classifier.py is classifies embeddings to their nearest neighbors in the support set.
+- knn_classifier.py classifies embeddings to their nearest neighbors in the support set.
 - embeddings.py trains up an embedding model.
 - metrics.py contains metrics and loss functions.
 - models.py contains all the models used by the system.
@@ -53,14 +56,15 @@ Main modules:
 
 Other modules:
 
-- classifiction.py contains the different classifiers and is made to easily switch between them.
 - cnn_classifier.py is a simple cnn classifier.
 - direction_classifier.py classifies the direction the fish is facing.
 - embeddings_siamese.py embedding learner using siamese network.
 - embeddings_ohnm.py embedding learner using online hard negative mining.
 - embeddings_triplet.py embedding learner using offline triplet siamese network.
-- main.py acts as the main inference script to classify images.
-- mlp_classifier.py classifies embeddings using mlp.
+- main.py supposed to be the main inference script to classify images.
+- mlp_classifier.py classifies embeddings to individuals using mlp.
+- new_classifier.py predicts whether an individual has been observed before or not.
+- pair_classifier.py predicts an individual given a view of both sides of the fish.
 - playground.py exists to try out small snippets.
 - region.py predicts a certain region of the fish in an image.
 - saliency.py extracts the pattern of a fish in the form of a binary image.

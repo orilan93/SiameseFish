@@ -5,46 +5,55 @@ Generally each part of the program preprocesses the input and puts it into subdi
 COPY_FILES: Filters files that is deemed useful and stores them in a directory.
 CROP_FILES: Crops images based on meta files.
 LABEL_DIRECTION: Names the files based on their directions.
+CREATE_LEFT_RIGHT_SPLIT: Splits a dataset into train and test for both left and right while keeping the pairs synced.
 CREATE_CLASS_FILE: Creates a file that contains all classes based on the filenames in the input directory.
 TEST_SPLIT: Splits a dataset into a test and train set.
 EXTRACT_MALES: Consults the dataset metafile to identify and extract all male individuals in a given directory.
+EXTRACT_NEWEST: Extracts the samples after a given date.
 """
 
 import os
 import glob
 from shutil import copy2
-from PIL import Image
+from PIL import Image, ExifTags
 from collections import defaultdict
 import random
 import pandas as pd
+from datetime import datetime
+import numpy as np
 
-# Where to get the data and where to put it
-DATA_DIR = '../data'
+DATA_DIR = os.path.join("..", "data")
 SRC_DATASET_DIR = os.path.join(DATA_DIR, "dataset")
-DST_DATASET_DIR = os.path.join(DATA_DIR, "dataset_condensed")
-CROPPED_DATASET_DIR = os.path.join(DST_DATASET_DIR, "cropped")
+DST_DATASET_DIR = os.path.join(DATA_DIR, "dataset")
+CROPPED_DATASET_DIR = os.path.join(DST_DATASET_DIR, "cropped_head")
 DIRECTION_DATASET_DIR = os.path.join(CROPPED_DATASET_DIR, "direction")
 TRAIN_DATASET_DIR = os.path.join(DIRECTION_DATASET_DIR, "train")
 TEST_DATASET_DIR = os.path.join(DIRECTION_DATASET_DIR, "test")
 MALE_DIRECTORY = os.path.join(DST_DATASET_DIR, "males")
+NEWEST_DIRECTORY = os.path.join(DST_DATASET_DIR, "newest")
 
 # The types of preprocessing to be done
 COPY_FILES = False
 CROP_FILES = False
 LABEL_DIRECTION = False
+CREATE_LEFT_RIGHT_SPLIT = False
 CREATE_CLASS_FILE = False
-TEST_SPLIT = True
+TEST_SPLIT = False
 EXTRACT_MALES = False
+EXTRACT_NEWEST = False
 
 # Various other parameters
 OVERWRITE = False
 TEST_SPLIT_FRACTION = 0.3
 TENSORFLOW_FORMAT = False # TODO: Implement this
-IGNORE_DIRECTION = None  # 'l', 'r', None
+IGNORE_DIRECTION = 'r'  # 'l', 'r', None
 CROP_BODY = False
 META_FILE = 'E:\\Mugshots\\photoFeltGrønngylt2.csv'
 ENSURE_PAIRS = False
 RANDOM_SWAP = False
+EXTRACT_AFTER = datetime(2020, 8, 1)
+UPDATE_DATASET_DIRECTION = False
+DATASET_FILE = os.path.join("..", "data", "dataset.csv")
 
 if COPY_FILES:
     target_individuals = glob.glob(SRC_DATASET_DIR + "/*_3.jpg")
@@ -86,8 +95,13 @@ if CROP_FILES:
             cropped_img.save(out_path)
 
 if LABEL_DIRECTION:
+
+    if UPDATE_DATASET_DIRECTION:
+        df_dataset = pd.read_csv(DATASET_FILE, encoding="latin-1")
+        df_dataset["dir_filename"] = ""
+
     filename_counter = defaultdict(int)
-    with open(os.path.join(DATA_DIR, "direction_condensed.txt")) as file:
+    with open(os.path.join(DATA_DIR, "direction.txt")) as file:
         for line in file:
             line = line.strip().split(sep=',')
             filename = line[0]
@@ -103,11 +117,67 @@ if LABEL_DIRECTION:
                 print("Warning:", src_path, "does not exist")
                 continue
             dst_path = os.path.join(DIRECTION_DATASET_DIR, out_filename)
+
+            if UPDATE_DATASET_DIRECTION:
+                idx = list(np.where(df_dataset["new_filename"] == filename)[0])[0]
+                df_dataset["dir_filename"][idx] = out_filename
+
             if not OVERWRITE and not os.path.isfile(dst_path):
                 copy2(src_path, dst_path)
-    with open(os.path.join(DATA_DIR, "classes_condensed_males_direction.txt"), "w") as file:
+    with open(os.path.join(DATA_DIR, "classes_direction_left.txt"), "w") as file:
         for key in filename_counter.keys():
             file.write(key + "\n")
+    if UPDATE_DATASET_DIRECTION:
+        df_dataset.to_csv(DATASET_FILE, index=False)
+
+
+if CREATE_LEFT_RIGHT_SPLIT:
+    jpg_files = glob.glob(DIRECTION_DATASET_DIR + "/*.jpg")
+    jpg_files = [os.path.basename(jpg_file) for jpg_file in jpg_files]
+    left_files = [jpg_file for jpg_file in jpg_files if jpg_file.split('_')[1] == 'l']
+    pairs = []
+    for left_file in left_files:
+        right_file = left_file.split('_')
+        right_file[1] = 'r'
+        right_file = '_'.join(right_file)
+        if os.path.isfile(os.path.join(DIRECTION_DATASET_DIR, right_file)):
+            pairs.append([left_file, right_file])
+    random.shuffle(pairs)
+    test_n = int(len(pairs) * TEST_SPLIT_FRACTION)
+    train = pairs[test_n:]
+    test = pairs[:test_n]
+
+    with open(os.path.join(DATA_DIR, "classes_pairs.txt"), "w") as file:
+        for pair in pairs:
+            cls = pair[0].split('_')[0]
+            file.write(cls + "\n")
+
+    for t in train:
+        left_file = t[0]
+        dst_path = os.path.join(CROPPED_DATASET_DIR, "direction_left", "train", left_file)
+        if not OVERWRITE and not os.path.isfile(dst_path):
+            left_file = os.path.join(DIRECTION_DATASET_DIR, t[0])
+            copy2(left_file, dst_path)
+
+        right_file = t[1]
+        dst_path = os.path.join(CROPPED_DATASET_DIR, "direction_right", "train", right_file)
+        if not OVERWRITE and not os.path.isfile(dst_path):
+            right_file = os.path.join(DIRECTION_DATASET_DIR, t[1])
+            copy2(right_file, dst_path)
+
+    for t in test:
+        left_file = t[0]
+        dst_path = os.path.join(CROPPED_DATASET_DIR, "direction_left", "test", left_file)
+        if not OVERWRITE and not os.path.isfile(dst_path):
+            left_file = os.path.join(DIRECTION_DATASET_DIR, t[0])
+            copy2(left_file, dst_path)
+
+        right_file = t[1]
+        dst_path = os.path.join(CROPPED_DATASET_DIR, "direction_right", "test", right_file)
+        if not OVERWRITE and not os.path.isfile(dst_path):
+            right_file = os.path.join(DIRECTION_DATASET_DIR, t[1])
+            copy2(right_file, dst_path)
+
 
 if CREATE_CLASS_FILE:
     jpg_files = glob.glob(DIRECTION_DATASET_DIR + "/*.jpg")
@@ -131,7 +201,7 @@ def random_swap(l1, l2, n):
 
 
 if TEST_SPLIT:
-    jpg_files = glob.glob(DIRECTION_DATASET_DIR + "/*.jpg")
+    jpg_files = glob.glob(DIRECTION_DATASET_DIR + "\\*.jpg")
 
     if ENSURE_PAIRS:
         classes = list(set(["_".join(os.path.basename(jpg_file).split("_")[:2]) for jpg_file in jpg_files]))
@@ -181,4 +251,22 @@ if EXTRACT_MALES:
     for file in copy_files:
         basename = os.path.basename(file)
         dst_path = os.path.join(MALE_DIRECTORY, basename)
+        copy2(file, dst_path)
+
+if EXTRACT_NEWEST:
+
+    jpg_files = glob.glob(DST_DATASET_DIR + "\\*.jpg")
+
+    copy_files = []
+
+    for jpg_file in jpg_files:
+        time = os.path.getmtime(jpg_file)
+        if time > EXTRACT_AFTER.timestamp():
+            txt_file = os.path.splitext(jpg_file)[0] + ".txt"
+            copy_files.append(txt_file)
+            copy_files.append(jpg_file)
+
+    for file in copy_files:
+        basename = os.path.basename(file)
+        dst_path = os.path.join(NEWEST_DIRECTORY, basename)
         copy2(file, dst_path)

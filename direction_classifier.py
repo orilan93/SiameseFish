@@ -10,11 +10,11 @@ from data import resize_padding
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import tensorflow as tf
+from config import IMG_SIZE
 
-DATA_DIR = "../data"
-DATASET_DIR = os.path.join(DATA_DIR, "dataset_condensed/cropped")
-DIRECTION_FILE = os.path.join(DATA_DIR, "direction_condensed.txt")
-IMG_SIZE = 416 # TODO: Load from config
+DATA_DIR = os.path.join("..", "data")
+DATASET_DIR = os.path.join(DATA_DIR, "dataset", "cropped_head")
+DIRECTION_FILE = os.path.join(DATA_DIR, "direction.txt")
 RETRAIN = True
 
 directions = dict()
@@ -30,11 +30,12 @@ y = []
 
 for key, value in directions.items():
     image_path = os.path.join(DATASET_DIR, key)
-    pil_img = Image.open(image_path)
-    pil_img = resize_padding(pil_img, IMG_SIZE)
+    if os.path.isfile(image_path):
+        pil_img = Image.open(image_path)
+        pil_img = resize_padding(pil_img, IMG_SIZE)
 
-    X.append(np.array(pil_img))
-    y.append(value)
+        X.append(np.array(pil_img))
+        y.append(value)
 
 X = np.array(X)
 X = tf.keras.applications.inception_v3.preprocess_input(X)

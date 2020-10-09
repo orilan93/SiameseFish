@@ -51,7 +51,7 @@ As the same individuals are mapped close together, a nearest neighbor search can
 
 ## Few-shot learning
 
-Few-shot learning is machine learning techniques in which you have few training examples per class.
+Few-shot learning is a machine learning techniques in which you have few training examples per class.
 One such technique is to transform the data into embeddings that clusters points
 from the same class together and then perform classification on these.
 
@@ -77,6 +77,19 @@ The problem with triplet loss is that there will be very many negative inputs th
 This is because given an anchor and a positive input, there is a very high chance that the negative input selected will be outside of the margin of the anchor.
 Therefore online hard negative mining [[4]][4][[5]][5] can be used to only train on samples that have hard negatives.
 This also have the benefit that you don't need to have three identical models loaded in memory, because this step is done after the embeddings are calculated.
+
+## Self-supervised learning
+
+Self-supervised learning is a learning strategy where labels are generated automatically by the system [[6]][6].
+One problem with such systems is that they often require heavy modifications [[7]][7]
+SimCLR [[8]][8] is however a method which can be easily implemented into existing frameworks and pipelines.
+It is based on the siamese network, but it takes unlabeled images as input.
+The system then takes a copy of each image and sends each pair of into a random augmentation process.
+It then passes the two images through the siamese network and applies a loss the authors refer to as Normalized Temperature-scaled Cross Entropy (NT-Xent).
+This loss is based on Noise Contrastive Estimation (NCE) which tries to approximate non-parametric softmax.
+It is non-parametric in that sense that each image instance is treated as a separate class and the approximation comes from the batch size instead of using all available instances.
+A disadvantage with this method is that it works best with a large batch size such that it gets a large collection of negative pairs, but a memory bank structure can be used to alleviate this [[9]][9].
+An advantage with this is that it is a one-shot algorithm, but you have to either make sure no two images of the same individual is in the same batch or consider it noise, because it will handle them as a negative pair.
 
 ## Performance metric
 
@@ -106,15 +119,12 @@ The embedding network trains on the training set and evaluates the performance o
 The classifier assigns the training set as support set and evaluates the performance on the query set.
 The query set can also be further partitioned into a test and validation set if the new observation threshold is searched for.
 
-## Other techniques
-
-- Spotify Annoy (approximate nearest neighbor)
-- Matching networks
-- Prototypical networks
-- Model Agnostic Meta Learning (MAML)
-
 [1]: https://www.kaggle.com/c/humpback-whale-identification/overview/evaluation
 [2]: https://papers.nips.cc/paper/769-signature-verification-using-a-siamese-time-delay-neural-network.pdf
 [3]: http://yann.lecun.com/exdb/publis/pdf/chopra-05.pdf
 [4]: https://arxiv.org/pdf/1503.03832.pdf
 [5]: https://omoindrot.github.io/triplet-loss
+[6]: https://arxiv.org/pdf/1902.06162.pdf
+[7]: https://ai.googleblog.com/2020/04/advancing-self-supervised-and-semi.html
+[8]: https://arxiv.org/pdf/2002.05709.pdf
+[9]: https://arxiv.org/pdf/1805.01978.pdf

@@ -10,9 +10,9 @@ import os
 import glob
 from PIL import ImageTk, Image
 
-DATA_DIR = "../data"
-DATASET_DIR = os.path.join(DATA_DIR, "dataset_condensed")
-DIRECTION_FILE = os.path.join(DATA_DIR, "direction_condensed.txt")
+DATA_DIR = os.path.join("..", "data")
+DATASET_DIR = os.path.join(DATA_DIR, "dataset_new")
+DIRECTION_FILE = os.path.join(DATA_DIR, "direction_new.txt")
 
 jpgs = glob.glob(DATASET_DIR + "\\*.jpg")
 
@@ -27,8 +27,8 @@ class Application(tk.Frame):
         self.master.bind("<Left>", self.left)
         self.master.bind("<Right>", self.right)
         self.master.bind("<End>", self.goto_last)
-        self.master.bind("<Ctrl-Left>", self.prev_unlabeled)
-        self.master.bind("<Ctrl-Right>", self.next_unlabeled)
+        #self.master.bind("<Ctrl-Left>", self.prev_unlabeled)
+        #self.master.bind("<Ctrl-Right>", self.next_unlabeled)
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.master = master
         self.pack()
@@ -38,6 +38,14 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         """Sets up interface."""
+        self.counter = tk.Label(self)
+        self.counter["text"] = ""
+        self.counter.pack(side="top")
+
+        self.filename = tk.Label(self)
+        self.filename["text"] = ""
+        self.filename.pack(side="top")
+
         self.label = tk.Label(self)
         self.label["text"] = ""
         self.label.pack(side="top")
@@ -57,6 +65,11 @@ class Application(tk.Frame):
         self.btn_prev["command"] = self.prev
         self.btn_prev.pack(side="left")
 
+        self.btn_prev = tk.Button(self)
+        self.btn_prev["text"] = "Next unlabeled"
+        self.btn_prev["command"] = self.next_unlabeled
+        self.btn_prev.pack(side="right")
+
         self.btn_quit = tk.Button(self, text="QUIT", fg="red",
                               command=self.quit)
         self.btn_quit.pack(side="bottom")
@@ -72,11 +85,12 @@ class Application(tk.Frame):
 
     def load(self):
         """Loads the direction file."""
-        with open(DIRECTION_FILE) as file:
-            for line in file:
-                line = line.strip()
-                row = line.split(",")
-                directions[row[0]] = int(row[1])
+        if os.path.isfile(DIRECTION_FILE):
+            with open(DIRECTION_FILE) as file:
+                for line in file:
+                    line = line.strip()
+                    row = line.split(",")
+                    directions[row[0]] = int(row[1])
 
 
     def save(self):
@@ -95,9 +109,12 @@ class Application(tk.Frame):
 
         basename = os.path.basename(filename)
         if basename in directions.keys():
-            self.label["text"] = "left" if directions[basename] == 0 else "right"
+            self.label["text"] = "LEFT" if directions[basename] == 0 else "RIGHT"
         else:
             self.label["text"] = ""
+
+        self.filename["text"] = os.path.basename(filename)
+        self.counter["text"] = str(self.current_index) + "/" + str(len(jpgs))
 
     def prev(self):
         """Go to the previous image."""
@@ -129,7 +146,13 @@ class Application(tk.Frame):
         self.update()
 
     def next_unlabeled(self, e=None):
-        raise NotImplemented
+        for i, jpg in enumerate(jpgs):
+            name = os.path.basename(jpg)
+            if name in directions:
+                continue
+            self.current_index = i
+            self.update()
+            return
 
     def prev_unlabeled(self, e=None):
         raise NotImplemented

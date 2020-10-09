@@ -9,16 +9,18 @@ import numpy as np
 import glob
 import random
 import os
+
+import models
+from config import IMG_SIZE
 from models import region_detector
 import tensorflow_addons as tfa
 
 from tensorflow.python.data.ops.dataset_ops import AUTOTUNE
 
-DATASET_DIR = "../data/dataset"
-IMG_SIZE = 416
-BATCH_SIZE = 8
+DATASET_DIR = os.path.join("..", "data", "newest")
+BATCH_SIZE = 32
 RETRAIN = True
-DEMO = False
+DEMO = True
 PREDICT_BODY = True
 
 
@@ -47,6 +49,12 @@ def decode_img(img):
     return tf.image.resize_with_pad(img, IMG_SIZE, IMG_SIZE)
 
 
+def transform_letterbox(tensor):
+    tensor = tf.math.add(tensor, tf.constant([0, (1 - (3 / 4)) / 2, 0, 0]))
+    tensor = tf.math.multiply(tensor, tf.constant([1, 3 / 4, 1, 3 / 4]))
+    return tensor
+
+
 def process_path(file_path):
     label = tf.io.read_file(file_path)
     label = tf.strings.split(label, sep="\n")[1]
@@ -54,9 +62,8 @@ def process_path(file_path):
     # label = tf.where(tf.equal(tf.string.split(label)[0],"0"))
     # label = tf.gather(label, 1, axis=1, batch_dims=-1)
     # label = tf.math.equal(tf.strings.split(label)[0], tf.constant("0"))
-    label = tf.math.add(label, tf.constant([0, (1 - (3 / 4)) / 2, 0, 0]))
-    label = tf.math.multiply(label, tf.constant([1, 3 / 4, 1, 3 / 4]))
-    img_path = tf.strings.split(file_path, sep='.')[0] + ".jpg"
+    label = transform_letterbox(label)
+    img_path = tf.strings.split(file_path, sep='.txt')[0] + ".jpg"
     img = tf.io.read_file(img_path)
     img = decode_img(img)
     return img, label
@@ -103,25 +110,10 @@ if os.path.isfile(os.path.join(DATASET_DIR, "classes.txt")):
 with open("../data/classes.txt") as file:
     classes = [line.strip() for line in file]
 
-list_ds = tf.data.Dataset.list_files(DATASET_DIR + "\\*.txt")
-image_count = len(list(glob.glob(DATASET_DIR + '/*.jpg')))
+list_ds = tf.data.Dataset.list_files(os.path.join(DATASET_DIR, "*.txt"))
+image_count = len(list(glob.glob(os.path.join(DATASET_DIR, '*.jpg'))))
 
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Input(shape=(416, 416, 3)),
-    tf.keras.layers.Conv2D(32, (3, 3), padding='same', activation=tf.nn.relu),
-    tf.keras.layers.MaxPooling2D((2, 2), strides=2),
-    tf.keras.layers.Conv2D(64, (3, 3), padding='same', activation=tf.nn.relu),
-    tf.keras.layers.MaxPooling2D((2, 2), strides=2),
-    tf.keras.layers.Conv2D(128, (3, 3), padding='same', activation=tf.nn.relu),
-    tf.keras.layers.MaxPooling2D((2, 2), strides=2),
-    tf.keras.layers.GlobalAveragePooling2D(),
-    #tf.keras.layers.Dense(128, activation=tf.nn.relu),
-    #tf.keras.layers.Dense(64, activation=tf.nn.relu),
-    #tf.keras.layers.Dense(32, activation=tf.nn.relu),
-    tf.keras.layers.Dense(4)
-])
-
-#model = region_detector
+model = models.region_detector
 
 if RETRAIN:
     labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)
@@ -147,11 +139,11 @@ if RETRAIN:
         show_batch(demo_result)
 
     model.compile(optimizer='adam',
-                  loss='mse',
+                  loss=tfa.losses.giou_loss,
                   #loss=tfa.losses.giou_loss,
                   metrics=['mae', 'mse'])
 
-    model.fit(train_ds, epochs=30, steps_per_epoch=50)
+    model.fit(train_ds, epochs=100, steps_per_epoch=50)
     model.save_weights("models/region")
 else:
     model.load_weights("models/region")
@@ -162,7 +154,7 @@ else:
 #    return img
 
 
-jpg_files = glob.glob(DATASET_DIR + "/*.jpg")
+jpg_files = glob.glob(os.path.join(DATASET_DIR, "*.jpg"))
 random.shuffle(jpg_files)
 jpg_files = jpg_files[:25]
 

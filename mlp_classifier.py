@@ -3,8 +3,7 @@ A multilayer perceptron classifier for embeddings.
 """
 
 import models
-from classification import get_embeddings
-from data import get_images, IMG_SIZE
+from data import get_images, IMG_SIZE, get_embeddings
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
