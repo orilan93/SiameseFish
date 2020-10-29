@@ -16,10 +16,11 @@ from config import IMG_SIZE
 from collections import defaultdict
 
 
-def get_images(path, classes, image_size, greyscale=False, direction_labels=True, format="jpg"):
+def get_images(path, classes, image_size, greyscale=False, direction_labels=True, format="jpg", exact_classes=False):
     """Gets the images in the specified folder in the form of X and y."""
     X = []
     y = []
+    y_exact = []
     glob_string = os.path.join(path, "*." + format)
     print(glob_string)
     jpg_files = glob.glob(glob_string)
@@ -31,7 +32,7 @@ def get_images(path, classes, image_size, greyscale=False, direction_labels=True
             label = "_".join(basename_split[:-1])
         else:
             label = basename_split[0]
-        index = classes.index(label)
+        index = classes.index(label) #TODO: Sjekke at dette er helt riktig (er det problem hvis det er hull her?)
 
         pil_img = Image.open(jpg_file)
         if greyscale:
@@ -44,7 +45,11 @@ def get_images(path, classes, image_size, greyscale=False, direction_labels=True
 
         X.append(pil_img)
         y.append(index)
-    return X, y
+        y_exact.append(basename_wo_ext)
+    if exact_classes:
+        return X, y, y_exact
+    else:
+        return X, y
 
 
 def get_mnist(n_samples=100):

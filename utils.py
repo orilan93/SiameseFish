@@ -4,6 +4,8 @@ Helpful utility functions.
 
 from tensorflow.python.keras.layers.convolutional import Conv2D
 import numpy as np
+import matplotlib.pyplot as plt
+import metrics
 
 
 def get_conv_layers(model):
@@ -47,3 +49,22 @@ def lr_scheduler(epoch, lr):
         return 1e-4
     else:
         return 1e-5
+
+
+def show_accuracy_curve(y_pred, y_test, return_auc=False):
+    res_at_k = []
+    k_max = y_pred.shape[1] + 1
+
+    ks = list(range(1, k_max))
+    for k in ks:
+        res = metrics.mean_accuracy_at_k(y_test, y_pred, k)
+        res_at_k.append(res)
+
+    plt.plot(ks, res_at_k)
+    plt.xlabel('k')
+    plt.ylabel('Accuracy')
+    plt.ylim(-0.1, 1.1)
+    plt.show()
+
+    if return_auc:
+        return np.sum(res_at_k) / k_max

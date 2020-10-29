@@ -15,6 +15,7 @@ import models
 import pandas as pd
 from sklearn.metrics import f1_score, accuracy_score, classification_report
 from scipy.spatial import distance
+from utils import show_accuracy_curve
 
 # Datasets
 FISH = 0
@@ -92,13 +93,14 @@ if USE_DATASET == FISH:
         with open("../data/classes_direction.txt") as file:
             classes = [line.strip() for line in file]
 
-    X_train, y_train = get_images(os.path.join(DATASET_DIR, "train"), classes, IMG_SIZE, greyscale=GREYSCALE,
-                                  direction_labels=direction_labels, format=format)
+    X_train, y_train, y_train_exact = get_images(os.path.join(DATASET_DIR, "train"), classes, IMG_SIZE,
+                                                 greyscale=GREYSCALE,
+                                                 direction_labels=direction_labels, format=format, exact_classes=True)
     X_train, y_train = np.array(X_train), np.array(y_train)
     X_train = tf.keras.applications.inception_v3.preprocess_input(X_train)
 
-    X_test, y_test = get_images(os.path.join(DATASET_DIR, "test"), classes, IMG_SIZE, greyscale=GREYSCALE,
-                                direction_labels=direction_labels, format=format)
+    X_test, y_test, y_test_exact = get_images(os.path.join(DATASET_DIR, "test"), classes, IMG_SIZE, greyscale=GREYSCALE,
+                                              direction_labels=direction_labels, format=format, exact_classes=True)
     X_test, y_test = np.array(X_test), np.array(y_test)
     X_test = tf.keras.applications.inception_v3.preprocess_input(X_test)
 
@@ -121,6 +123,7 @@ if IGNORE_NEW_OBSERVATIONS:
     # Remove new observations from dataset
     X_test = np.delete(X_test, drop_indices, axis=0)
     y_test = np.delete(y_test, drop_indices, axis=0)
+    y_test_exact = np.delete(y_test_exact, drop_indices, axis=0)
     filenames = np.delete(filenames, drop_indices, axis=0)
 
 if not IGNORE_NEW_OBSERVATIONS:
@@ -137,8 +140,9 @@ print("new observations in test: ", str(new_observations))
 
 # Stores support set embeddings into a dataframe
 X_embeddings, y_embeddings = get_embeddings(model, X_train, y_train)
-columns = ["x" + str(i) for i in range(DESCRIPTOR_SIZE)] + ["y"]
-df = pd.DataFrame(np.column_stack([X_embeddings, y_embeddings]), columns=columns)
+columns = ["x" + str(i) for i in range(DESCRIPTOR_SIZE)] + ["y", "support_exact"]
+df = pd.DataFrame(np.column_stack([X_embeddings, y_embeddings, y_train_exact]), columns=columns)
+df[columns[:-2]] = df[columns[:-2]].apply(pd.to_numeric)
 df = df.astype({"y": int})
 
 if EXPORT_EMBEDDINGS:
@@ -153,10 +157,18 @@ if EXPORT_EMBEDDINGS:
     df2.to_csv("embeddings.csv", index=False)
 
 
-def predict_k(df_embeddings, x_test, k=1, metric='euclidean', predict_new=True, threshold=0.5):
+def predict_k(df_embeddings, x_test, k=1, metric='euclidean', predict_new=True, threshold=0.5, exact_class=False,
+              y_test=None):
     """Predicts the classes for x_test from the embeddings dataframe."""
+
     embeddings = model.predict(x_test)
+
+    support_exact = []
+    support_exact_at_correct = []
+    y_pred_exact = []
+    correct_exact = []
     y_pred = []
+
     for i, embedding in enumerate(embeddings):
         if metric == 'euclidean':
             df_embeddings['distance'] = np.linalg.norm(df_embeddings.iloc[:, :DESCRIPTOR_SIZE].sub(embedding), axis=1)
@@ -169,7 +181,20 @@ def predict_k(df_embeddings, x_test, k=1, metric='euclidean', predict_new=True, 
         df_sorted = df_sorted.sort_values(by='distance', ignore_index=True)  # TODO: Indent?
         k_best = df_sorted['y'][:k].tolist()
         y_pred.append(k_best)
-    return np.array(y_pred)
+
+        if exact_class:
+            y_pred_exact.append(y_test_exact[i])
+            support_exact.append(df_sorted["support_exact"][0])
+            if y_test is not None:
+                first_correct = df_sorted[df_sorted['y'] == y_test[i]]
+                correct_exact.append(first_correct["support_exact"].to_numpy()[0])
+                support_exact_at_correct.append(df_sorted[df_sorted["y"] == y_test[i]]["support_exact"].to_numpy()[0])
+
+    if exact_class:
+        print(len(support_exact_at_correct))
+        return np.array(y_pred), np.array(y_pred_exact), np.array(support_exact), np.array(correct_exact), np.array(support_exact_at_correct)
+    else:
+        return np.array(y_pred)
 
 
 def rank(y_pred, y_true):
@@ -190,20 +215,8 @@ def evaluate(y_pred, y_true, accuracy_curve=False):
     print("Accuracy: ", accuracy, "\nmAcc@5: ", mAcc_5, "\nMAP@5: ", mAP_5, "\nF1: ", f1, "\nNew: ", new_count)
 
     if accuracy_curve:
-        res_at_k = []
-        k_max = y_pred.shape[1] + 1
-        ks = list(range(1, k_max))
-        for k in ks:
-            res = mean_accuracy_at_k(y_test, y_pred, k)
-            res_at_k.append(res)
-
-        plt.plot(ks, res_at_k)
-        plt.xlabel('k')
-        plt.ylabel('Accuracy')
-        plt.ylim(-0.1, 1.1)
-        plt.show()
-
-        print("AUC: ", np.sum(res_at_k) / k_max)
+        auc = show_accuracy_curve(y_pred, y_test, return_auc=True)
+        print("AUC: ", auc)
 
 
 # Find best threshold
@@ -225,13 +238,17 @@ if not IGNORE_NEW_OBSERVATIONS:
 else:
     best_t = THRESHOLD
 
-y_pred = predict_k(df, X_test, k=len(df), metric=DISTANCE_METRIC, predict_new=not IGNORE_NEW_OBSERVATIONS,
-                   threshold=best_t)
+y_pred, y_pred_exact, support_exact, correct_exact, support_exact_at_correct = predict_k(df, X_test, k=len(df), metric=DISTANCE_METRIC,
+                                                               predict_new=not IGNORE_NEW_OBSERVATIONS,
+                                                               threshold=best_t, exact_class=True, y_test=y_test)
 
 if EXPORT_PREDICTIONS:
     ranks = rank(y_pred, y_test)
-    columns = ["filename"] + ["p" + str(i + 1) for i in range(len(df))] + ["rank"] + ["y"]
-    df_pred = pd.DataFrame(np.column_stack((filenames, y_pred, ranks, y_test)), columns=columns)
+    columns = ["filename"] + ["p" + str(i + 1) for i in range(len(df))] + ["support_exact", "query_exact",
+                                                                           "correct_exact", "support_exact_at_correct", "rank", "y"]
+    df_pred = pd.DataFrame(
+        np.column_stack((filenames, y_pred, support_exact, y_pred_exact, correct_exact, support_exact_at_correct, ranks, y_test)),
+        columns=columns)
     df_pred.to_csv("predictions.csv", index=False)
 
 evaluate(y_pred, y_test, accuracy_curve=True)
