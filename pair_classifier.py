@@ -12,15 +12,17 @@ from scipy.spatial import distance
 from sklearn.metrics import accuracy_score, f1_score
 import random
 import metrics
-from utils import show_accuracy_curve
+from predictions import show_accuracy_curve
 
 # Configs
 DISTANCE_METRIC = 'euclidean'
 IGNORE_NEW_OBSERVATIONS = True
 
-DATASET_DIR_LEFT = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_left')
-DATASET_DIR_RIGHT = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_right')
-with open("../data/classes_pairs.txt") as file:
+DATASET_DIR_LEFT = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'left')
+DATASET_DIR_RIGHT = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'right')
+# DATASET_DIR_LEFT = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_left')
+# DATASET_DIR_RIGHT = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_right')
+with open("../data/classes.txt") as file:
     classes = [line.strip() for line in file]
 
 
@@ -37,18 +39,31 @@ def load_dataset(dir, classes):
     X_test = tf.keras.applications.inception_v3.preprocess_input(X_test)
     y_test = np.array(y_test)
 
+    return X_train, y_train, X_test, y_test
+
+
+def remove_from_test(x_test_left, y_test_left, x_test_right, y_test_right, y_train_left, y_train_right):
+    """Remove from test set, if the class doesn't exists in the train set."""
+
     drop_indices = []
-    # Set y to -1 if record does not exist in the training set
-    for i, y_test_i in enumerate(y_test):
-        if y_test_i not in y_train:
-            y_test[i] = -1
+    for i, y_test_i in enumerate(y_test_left):
+        if y_test_i not in y_train_left:
+            y_test_left[i] = -1
+            drop_indices.append(i)
+
+    for i, y_test_i in enumerate(y_test_right):
+        if y_test_i not in y_train_right:
+            y_test_right[i] = -1
             drop_indices.append(i)
 
     if IGNORE_NEW_OBSERVATIONS:
-        X_test = np.delete(X_test, drop_indices, axis=0)
-        y_test = np.delete(y_test, drop_indices, axis=0)
+        x_test_left = np.delete(x_test_left, drop_indices, axis=0)
+        y_test_left = np.delete(y_test_left, drop_indices, axis=0)
 
-    return X_train, y_train, X_test, y_test
+        x_test_right = np.delete(x_test_right, drop_indices, axis=0)
+        y_test_right = np.delete(y_test_right, drop_indices, axis=0)
+
+    return x_test_left, y_test_left, x_test_right, y_test_right
 
 
 def create_dataframe(model, x_train, y_train):
@@ -130,10 +145,11 @@ def pair_predict(pred_left, pred_right, classes):
 
     return y_list
 
+
 # Load models
 left_model = models.triplet_network_ohnm
 left_model.load_weights('./models/left')
-# Cloning is necesarry or else it will just overwrite the other model
+# Cloning is necessary or else it will just overwrite the other model
 right_model = tf.keras.models.clone_model(models.triplet_network_ohnm)
 right_model.load_weights('./models/right')
 
@@ -141,12 +157,19 @@ right_model.load_weights('./models/right')
 X_train_left, y_train_left, X_test_left, y_test_left = load_dataset(DATASET_DIR_LEFT, classes)
 X_train_right, y_train_right, X_test_right, y_test_right = load_dataset(DATASET_DIR_RIGHT, classes)
 
+# Remove from test set if class doesn't exist in train set
+X_test_left, y_test_left, X_test_right, y_test_right = remove_from_test(
+    X_test_left, y_test_left, X_test_right, y_test_right, y_train_left, y_train_right)
+
+print("y_test_left size: {}".format(len(y_test_left)))
+print("y_test_right size: {}".format(len(y_test_right)))
+
 # Create dataframes of the support set
 df_left = create_dataframe(left_model, X_train_left, y_train_left)
 df_right = create_dataframe(right_model, X_train_right, y_train_right)
 
 # Sanity check that the left and right dataset is actually paired
-assert ((y_train_left == y_train_right).all())
+# assert ((y_train_left == y_train_right).all())
 assert ((y_test_left == y_test_right).all())
 y_test = y_test_right
 
@@ -166,7 +189,7 @@ y_pred = np.array(pair_predict(predictions_left, predictions_right, classes))
 
 # Slice away unused values
 y_pred = y_pred[:, :len(df_left)]
-assert(not (y_pred == -1).any())
+assert (not (y_pred == -1).any())
 print("Prediction set shape: {}".format(y_pred.shape))
 first_predictions = y_pred[:, 0]
 

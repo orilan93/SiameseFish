@@ -47,10 +47,11 @@ Main modules:
 - data.py contains functions for retrieving and manipulating data.
 - data_extraction.py extracts data from the drive.
 - direction_labeler.py is a tool for labeling the direction of the fish in an efficient manner.
-- knn_classifier.py classifies embeddings to their nearest neighbors in the support set.
 - embeddings.py trains up an embedding model.
+- knn_classifier.py classifies embeddings to their nearest neighbors in the support set.
 - metrics.py contains metrics and loss functions.
 - models.py contains all the models used by the system.
+- predictions.py contains functions for predicting and evaluating using embeddings and knn.
 - preprocess_data.py preprocesses the data and puts it into a structure ready for training.
 - utils.py contains various support functions that are often needed.
 

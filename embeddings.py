@@ -37,6 +37,7 @@ FISH_HEAD_RIGHT = 3
 FISH_PAIR_LEFT = 4
 FISH_PAIR_RIGHT = 5
 FISH_BINARY = 6
+FISH_MERGED = 7
 
 # Configs
 RETRAIN = True
@@ -46,8 +47,8 @@ GREYSCALE = False
 NETWORK_TYPE = OHNM_TRIPLET
 USE_DATASET = FISH
 DATASET_FLAVOUR = FISH_HEAD
-CONTINUE = None # 'models/model_500' # NONE
-CHECKPOINT_AFTER = 100 # None
+CONTINUE = None  # 'models/model_500' # NONE
+CHECKPOINT_AFTER = 100  # None
 
 # Runs through fine tuning steps specified by (unfreeze from layer, epochs, learning rate)
 # fine_tuning = [(None, 50, 1e-3), (276, 50, 1e-4), (248, 50, 1e-5)]
@@ -65,7 +66,7 @@ imgaug_augmentor = iaa.Sequential([
     # iaa.AddToHueAndSaturation(iap.Uniform(-45, 45)),
     iaa.AddToHueAndSaturation(iap.Uniform(-20, 20)),
     # iaa.CropAndPad(percent=(-0.25, 0.25))
-    # iaa.Affine(rotate=iap.Uniform(-10, 10))
+    # iaa.Affine(rotate=iap.Uniform(-45, 45))
 ])
 
 # Keras augmentations
@@ -109,23 +110,28 @@ if USE_DATASET == FISH:
         with open("../data/classes_direction_left.txt") as file:
             classes = [line.strip() for line in file]
 
-    if DATASET_FLAVOUR == FISH_PAIR_LEFT:
-        DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_left')
-        with open("../data/classes_pairs.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_PAIR_RIGHT:
-        DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_right')
-        with open("../data/classes_pairs.txt") as file:
-            classes = [line.strip() for line in file]
-
     if DATASET_FLAVOUR == FISH_HEAD_RIGHT:
         DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_right')
         with open("../data/classes_direction_right.txt") as file:
             classes = [line.strip() for line in file]
 
+    if DATASET_FLAVOUR == FISH_PAIR_LEFT:
+        DATASET_DIR = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'left')
+        with open("../data/classes.txt") as file:
+            classes = [line.strip() for line in file]
+
+    if DATASET_FLAVOUR == FISH_PAIR_RIGHT:
+        DATASET_DIR = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'right')
+        with open("../data/classes.txt") as file:
+            classes = [line.strip() for line in file]
+
     if DATASET_FLAVOUR == FISH_WHOLE:
         DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_body', 'direction')
+        with open("../data/classes_direction.txt") as file:
+            classes = [line.strip() for line in file]
+
+    if DATASET_FLAVOUR == FISH_MERGED:
+        DATASET_DIR = os.path.join('..', 'data', 'merged', 'head', 'Oct')
         with open("../data/classes_direction.txt") as file:
             classes = [line.strip() for line in file]
 
@@ -402,6 +408,5 @@ if NETWORK_TYPE == OHNM_TRIPLET:
     #             break
     #         col.imshow(samples[ix].reshape(IMG_SHAPE) + 0.5)
     # plt.show()
-
 
 print("Dataset coverage: ", len(coverage) / len(classes))
