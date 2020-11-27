@@ -30,16 +30,33 @@ def show_accuracy_curve(y_pred, y_test, return_auc=False):
         return np.sum(res_at_k) / k_max
 
 
-def predict_k(model, df_embeddings, x_test, k=1, metric='euclidean', predict_new=True, threshold=0.5, exact_class=False,
-              y_test=None, y_test_exact=None):
-    """Predicts the classes for x_test from the embeddings dataframe."""
+def predict_k(model, df_embeddings, x_test, k=1, metric='euclidean', predict_new=True, threshold=0.5,
+              include_filenames=False, y_test=None, test_filenames=None):
+    """Predicts the classes for x_test from the embeddings dataframe.
+
+    Args:
+        model (tf.keras.Model): The model to use to transform images to embeddings.
+        df_embeddings (pd.DataFrame): The dataframe containing the support set embedding.
+        x_test (np.ndarray): The query set images.
+        k (int): The number of attempts (-1 for all).
+        metric (string): Whether to use 'euclidean' or 'cosine' distance.
+        predict_new (bool): Whether to predict new observations.
+        threshold (float): The distance threshold for predicting a new observation.
+        include_filenames (bool): Whether to return the filenames.
+        y_test (np.array): y_test or None if include_filenames is False.
+        test_filenames (list): test_filenames or None if include_filenames is False.
+
+    Returns:
+        Returns an array of predictions with a shape of (query images, k attempts) and optionally filenames.
+
+    """
 
     embeddings = model.predict(x_test)
 
-    support_exact = []
-    support_exact_at_correct = []
-    y_pred_exact = []
-    correct_exact = []
+    support_filename = []
+    support_filename_at_correct = []
+    query_filename = []
+    correct_filename = []
     y_pred = []
 
     for i, embedding in enumerate(embeddings):
@@ -52,20 +69,22 @@ def predict_k(model, df_embeddings, x_test, k=1, metric='euclidean', predict_new
         if predict_new:
             df_sorted = df_sorted.append({'y': -1, 'distance': threshold}, ignore_index=True)
         df_sorted = df_sorted.sort_values(by='distance', ignore_index=True)  # TODO: Indent?
-        k_best = df_sorted['y'][:k].tolist()
+        if k == -1:
+            k_best = df_sorted['y'].tolist()
+        else:
+            k_best = df_sorted['y'][:k].tolist()
         y_pred.append(k_best)
 
-        if exact_class:
-            y_pred_exact.append(y_test_exact[i])
-            support_exact.append(df_sorted["support_exact"][0])
+        if include_filenames:
+            query_filename.append(test_filenames[i])
+            support_filename.append(df_sorted["support_filename"][0])
             if y_test is not None:
                 first_correct = df_sorted[df_sorted['y'] == y_test[i]]
-                correct_exact.append(first_correct["support_exact"].to_numpy()[0])
-                support_exact_at_correct.append(df_sorted[df_sorted["y"] == y_test[i]]["support_exact"].to_numpy()[0])
+                correct_filename.append(first_correct["support_filename"].to_numpy()[0])
+                support_filename_at_correct.append(df_sorted[df_sorted["y"] == y_test[i]]["support_filename"].to_numpy()[0])
 
-    if exact_class:
-        print(len(support_exact_at_correct))
-        return np.array(y_pred), np.array(y_pred_exact), np.array(support_exact), np.array(correct_exact), np.array(support_exact_at_correct)
+    if include_filenames:
+        return np.array(y_pred), np.array(query_filename), np.array(support_filename), np.array(correct_filename), np.array(support_filename_at_correct)
     else:
         return np.array(y_pred)
 

@@ -93,7 +93,7 @@ An advantage with this is that it is a one-shot algorithm, but you have to eithe
 
 ## Performance metric
 
-Classification accuracy is possibly the most important performance metric to look at in the end,
+Precision and recall are possibly the most important performance metric to look at in the end,
 but it is not a good metric for comparing models and seeing how it improves.
 This is because if the model is very close to predicting the correct value, it will still give no score.
 Therefore mean average precision at 5 (mAP@5) is used to assess the model [[1]][1].
@@ -107,7 +107,7 @@ Given the prediction [B, A, C, C, A] and the correct class is A, the average pre
 
 The embedding network and the classifier has a kind of contrasting need when it comes to the dataset partitioning.
 The embedding network needs there to be many same pairs to train on, while the classifier needs a good mix of already observed individuals and new observations.
-This can become slightly problematic when each class only has two images because when you shuffle and split the data randomly between a train and test set,
+This can become slightly problematic when each class has very few images because when you shuffle and split the data randomly between a train and test set,
 the embedding network will end up with not as many same pairs as it would get by splitting based on class.
 However if the dataset is split based on the class, the classifier will not have any earlier observed individuals.
 This is just an observation that was made, but the most practical way to partition the dataset that was found is as follows.
@@ -118,6 +118,18 @@ The dataset is randomly split into a test and train set.
 The embedding network trains on the training set and evaluates the performance on the test set.
 The classifier assigns the training set as support set and evaluates the performance on the query set.
 The query set can also be further partitioned into a test and validation set if the new observation threshold is searched for.
+
+## Network tuning
+
+To improve the performance of the network, different modifications and tuning can be performed.
+- The batch size, image size and embedding descriptor size can be changed from the config file.
+- The model can be changed for a different pretrained network and layers can be added like dense layers with different activations and dropout.
+- The data feeding when training can be altered in the preprocessing module. This can be used to for example change the portion of positive samples.
+- Different image augmentations can be used.
+- The number of epochs, learning rate and which layers to unfreeze can be controlled by the fine_tune variable in the embeddings module.
+
+
+
 
 [1]: https://www.kaggle.com/c/humpback-whale-identification/overview/evaluation
 [2]: https://papers.nips.cc/paper/769-signature-verification-using-a-siamese-time-delay-neural-network.pdf

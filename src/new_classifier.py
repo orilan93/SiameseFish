@@ -4,66 +4,27 @@ Predicts whether a query sample exists in the support set or is a new unobserved
 
 import numpy as np
 from sklearn.model_selection import train_test_split
-import tensorflow as tf
-from data import get_images, get_omniglot, get_embeddings
-from config import IMG_SIZE, DESCRIPTOR_SIZE
+import const
+from data import get_omniglot, get_embeddings, load_dataset
+from config import DESCRIPTOR_SIZE
 import models
 import pandas as pd
 from sklearn.metrics import f1_score, accuracy_score, classification_report
 
-# Datasets
-FISH = 0
-OMNIGLOT = 1
-
-# Dataset flavours
-FISH_HEAD_DIRECTION = 0
-FISH_MALES = 1
-FISH_HEAD_LEFT = 2
-FISH_WHOLE = 3
-
 # Configs
-BATCH_SIZE = 5
 THRESHOLD = 0.4
 RETRAIN = True
 DEMO = False
-USE_DATASET = FISH
-DATASET_FLAVOUR = FISH_HEAD_DIRECTION
+USE_DATASET = const.FISH
+DATASET_FLAVOUR = const.FISH_MERGED
 
 model = models.triplet_network_ohnm
-model.load_weights('./models/embedding')
+model.load_weights('../models/embedding')
 
-if USE_DATASET == FISH:
-    if DATASET_FLAVOUR == FISH_HEAD_DIRECTION:
-        DATASET_DIR = "../data/dataset/cropped_head/direction"
-        with open("../data/classes_direction.txt") as file:
-            classes = [line.strip() for line in file]
+if USE_DATASET == const.FISH:
+    X_train, y_train, X_test, y_test, classes = load_dataset(DATASET_FLAVOUR, preprocess=True)
 
-    if DATASET_FLAVOUR == FISH_MALES:
-        DATASET_DIR = "../data/dataset_condensed/males/cropped_head/direction"
-        with open("../data/classes_condensed_males.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_HEAD_LEFT:
-        DATASET_DIR = "../data/dataset_condensed/cropped_head/direction_left"
-        with open("../data/classes_condensed_head_left.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_WHOLE:
-        DATASET_DIR = "../data/dataset_condensed/cropped/direction"
-        with open("../data/classes_condensed_direction.txt") as file:
-            classes = [line.strip() for line in file]
-
-    X_train, y_train = get_images(DATASET_DIR + "\\train", classes, IMG_SIZE)
-    X_train = np.array(X_train)
-    X_train = tf.keras.applications.inception_v3.preprocess_input(X_train)
-    y_train = np.array(y_train)
-
-    X_test, y_test = get_images(DATASET_DIR + "\\test", classes, IMG_SIZE)
-    X_test = np.array(X_test)
-    X_test = tf.keras.applications.inception_v3.preprocess_input(X_test)
-    y_test = np.array(y_test)
-
-if USE_DATASET == OMNIGLOT:
+if USE_DATASET == const.OMNIGLOT:
     X, y = get_omniglot()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=0)
 
@@ -131,4 +92,3 @@ print("best t: ", best_t)
 
 THRESHOLD = best_t
 accuracy, f1 = evaluate(X_test, y_test)
-evaluate(X_test, y_test)

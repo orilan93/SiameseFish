@@ -1,12 +1,11 @@
 """
-Classifier for the direction the fish is facing in the image.
+Classifier that predicts the direction the fish is facing in the image.
 """
 
 import os
 from PIL import Image
 import numpy as np
 from keras_preprocessing.image import ImageDataGenerator
-
 from models import direction_detector
 from data import resize_padding
 from sklearn.model_selection import train_test_split
@@ -14,9 +13,6 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from config import IMG_SIZE
 
-#DATA_DIR = os.path.join("..", "data")
-#DATASET_DIR = os.path.join(DATA_DIR, "dataset", "cropped_head")
-#DIRECTION_FILE = os.path.join(DATA_DIR, "direction.txt")
 DATA_DIR = os.path.join("..", "data", "quad", "first_batch")
 DATASET_DIR = os.path.join(DATA_DIR, "cropped")
 DIRECTION_FILE = os.path.join(DATA_DIR, "direction.txt")
@@ -65,7 +61,6 @@ X_train = next(X_train)
 X_train = tf.keras.applications.inception_v3.preprocess_input(X_train)
 X_test = tf.keras.applications.inception_v3.preprocess_input(X_test)
 
-
 model = direction_detector
 
 model.compile(optimizer='adam',
@@ -75,9 +70,9 @@ model.compile(optimizer='adam',
 if RETRAIN:
     model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test))
 
-    model.save_weights('./models/direction_quad')
+    model.save_weights('../models/direction_quad')
 else:
-    model.load_weights('./models/direction_quad')
+    model.load_weights('../models/direction_quad')
 
 model.evaluate(X_test, y_test)
 

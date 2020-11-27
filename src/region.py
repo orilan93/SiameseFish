@@ -9,12 +9,9 @@ import numpy as np
 import glob
 import random
 import os
-
 import models
 from config import IMG_SIZE
-from models import region_detector
 import tensorflow_addons as tfa
-
 from tensorflow.python.data.ops.dataset_ops import AUTOTUNE
 
 DATASET_DIR = os.path.join("..", "data", "newest")

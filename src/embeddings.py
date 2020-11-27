@@ -2,8 +2,6 @@
 Network that learns good embeddings from images.
 """
 import math
-import os
-
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -12,41 +10,23 @@ from keras_preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
 import imgaug.augmenters as iaa
 import imgaug.parameters as iap
-from config import IMG_SHAPE, IMG_SIZE
-from data import define_ohnm_train_test_generators, get_omniglot, define_siamese_train_test_generators, \
-    define_triplet_train_test_generators, get_images, define_ntxent_train_test_generators, coverage
+from config import IMG_SHAPE, IMG_SIZE, BATCH_SIZE
+from data import get_omniglot, load_dataset
 from metrics import map_metric, above_threshold, triplet_loss, ntxent_loss
+from preprocessing.siamese import define_siamese_train_test_generators
+from preprocessing.triplet import define_triplet_train_test_generators
+from preprocessing.ohnm import define_ohnm_train_test_generators, coverage
+from preprocessing.ntxent import define_ntxent_train_test_generators
 import models
-
-# Network types
-SIAMESE_BINARY = 0
-SIAMESE_CONTRASTIVE = 1
-SIAMESE_NTXENT = 2
-SIAMESE_TRIPLET = 3
-OHNM_TRIPLET = 4
-
-# Datasets
-FISH = 0
-OMNIGLOT = 1
-
-# Dataset flavours
-FISH_HEAD = 0
-FISH_WHOLE = 1
-FISH_HEAD_LEFT = 2
-FISH_HEAD_RIGHT = 3
-FISH_PAIR_LEFT = 4
-FISH_PAIR_RIGHT = 5
-FISH_BINARY = 6
-FISH_MERGED = 7
+import const
 
 # Configs
 RETRAIN = True
-BATCH_SIZE = 32
 MARGIN = 1.0  # 0.2 # 1.0
 GREYSCALE = False
-NETWORK_TYPE = OHNM_TRIPLET
-USE_DATASET = FISH
-DATASET_FLAVOUR = FISH_HEAD
+NETWORK_TYPE = const.OHNM_TRIPLET
+USE_DATASET = const.FISH
+DATASET_FLAVOUR = const.FISH_MERGED
 CONTINUE = None  # 'models/model_500' # NONE
 CHECKPOINT_AFTER = 100  # None
 
@@ -58,7 +38,7 @@ CHECKPOINT_AFTER = 100  # None
 # fine_tuning = [(None, 10, 1e-3), (293, 40, 1e-4)]
 # fine_tuning = [(None, 1000, 1e-3), (86, 500, 1e-4), (63, 500, 1e-4)]
 # fine_tuning = [(86, 100, 1e-4), (63, 100, 1e-4)]
-fine_tuning = [(63, 200, 1e-3)]
+fine_tuning = [(86, 100, 1e-3)]
 
 # Imgaug augmentations
 imgaug_augmentor = iaa.Sequential([
@@ -79,87 +59,31 @@ keras_augmentor = ImageDataGenerator(
     # channel_shift_range=50.0,
     # brightness_range=[0.9, 1.1],
     # preprocessing_function=flip_channels,
-    # preprocessing_function=to_greyscale
     # vertical_flip=True,
     # horizontal_flip=True
 )
 
 # Load static dataset
-if USE_DATASET == FISH:
+if USE_DATASET == const.FISH:
+    X_train, y_train, X_test, y_test, classes = load_dataset(DATASET_FLAVOUR)
 
-    direction_labels = True
-    if DATASET_FLAVOUR in [FISH_PAIR_LEFT, FISH_PAIR_RIGHT]:
-        direction_labels = False
-
-    format = "jpg"
-    if DATASET_FLAVOUR == FISH_BINARY:
-        format = "png"
-
-    if DATASET_FLAVOUR == FISH_HEAD:
-        DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction')
-        with open("../data/classes_direction.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_BINARY:
-        DATASET_DIR = os.path.join('..', 'data', 'binary')
-        with open("../data/classes_direction.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_HEAD_LEFT:
-        DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_left')
-        with open("../data/classes_direction_left.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_HEAD_RIGHT:
-        DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_right')
-        with open("../data/classes_direction_right.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_PAIR_LEFT:
-        DATASET_DIR = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'left')
-        with open("../data/classes.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_PAIR_RIGHT:
-        DATASET_DIR = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'right')
-        with open("../data/classes.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_WHOLE:
-        DATASET_DIR = os.path.join('..', 'data', 'dataset', 'cropped_body', 'direction')
-        with open("../data/classes_direction.txt") as file:
-            classes = [line.strip() for line in file]
-
-    if DATASET_FLAVOUR == FISH_MERGED:
-        DATASET_DIR = os.path.join('..', 'data', 'merged', 'head', 'Oct')
-        with open("../data/classes_direction.txt") as file:
-            classes = [line.strip() for line in file]
-
-    X_train, y_train = get_images(os.path.join(DATASET_DIR, "train"), classes, IMG_SIZE, greyscale=GREYSCALE,
-                                  direction_labels=direction_labels, format=format)
-    X_train, y_train = np.array(X_train), np.array(y_train)
-
-    X_test, y_test = get_images(os.path.join(DATASET_DIR, "test"), classes, IMG_SIZE, greyscale=GREYSCALE,
-                                direction_labels=direction_labels, format=format)
-    X_test, y_test = np.array(X_test), np.array(y_test)
-
-if USE_DATASET == OMNIGLOT:  # CHANGE IMG_SIZE to 105
+if USE_DATASET == const.OMNIGLOT:  # CHANGE IMG_SIZE to 105
     X, y = get_omniglot()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
 
     classes = np.unique(np.concatenate((y_train, y_test)))
 
 # fetch dataset generators
-if NETWORK_TYPE == SIAMESE_BINARY or NETWORK_TYPE == SIAMESE_CONTRASTIVE:
+if NETWORK_TYPE == const.SIAMESE_BINARY or NETWORK_TYPE == const.SIAMESE_CONTRASTIVE:
     train_batch, test_batch = define_siamese_train_test_generators(X_train, y_train, X_test, y_test, BATCH_SIZE,
                                                                    keras_augmentor, imgaug_augmentor)
-if NETWORK_TYPE == SIAMESE_NTXENT:
+if NETWORK_TYPE == const.SIAMESE_NTXENT:
     train_batch, test_batch = define_ntxent_train_test_generators(X_train, y_train, X_test, y_test, BATCH_SIZE,
                                                                   keras_augmentor, imgaug_augmentor)
-if NETWORK_TYPE == SIAMESE_TRIPLET:
+if NETWORK_TYPE == const.SIAMESE_TRIPLET:
     train_batch, test_batch = define_triplet_train_test_generators(X_train, y_train, X_test, y_test,
                                                                    BATCH_SIZE, keras_augmentor, imgaug_augmentor)
-if NETWORK_TYPE == OHNM_TRIPLET:
+if NETWORK_TYPE == const.OHNM_TRIPLET:
     train_batch, test_batch = define_ohnm_train_test_generators(X_train, y_train, X_test, y_test,
                                                                 BATCH_SIZE, keras_augmentor, imgaug_augmentor)
 
@@ -173,19 +97,19 @@ print("Test set classes with at least two samples: ", (counts >= 2).sum())
 
 # Show examples of input
 samples, labels = next(train_batch)
-if NETWORK_TYPE in [SIAMESE_BINARY, SIAMESE_CONTRASTIVE, SIAMESE_NTXENT]:
+if NETWORK_TYPE in [const.SIAMESE_BINARY, const.SIAMESE_CONTRASTIVE, const.SIAMESE_NTXENT]:
     fig, ax = plt.subplots(nrows=4, ncols=3)
     [axi.set_axis_off() for axi in ax.ravel()]
     for i, row in enumerate(ax):
         row[0].imshow(samples[0][i].reshape(IMG_SHAPE) + 0.5)
         row[1].imshow(samples[1][i].reshape(IMG_SHAPE) + 0.5)
-        if USE_DATASET == FISH:
-            if NETWORK_TYPE == SIAMESE_NTXENT:
+        if USE_DATASET == const.FISH:
+            if NETWORK_TYPE == const.SIAMESE_NTXENT:
                 row[2].text(0, 0, str(classes[labels[i]]))
             else:
                 row[2].text(0, 0, str(labels[i]))
     plt.show()
-if NETWORK_TYPE == OHNM_TRIPLET:
+if NETWORK_TYPE == const.OHNM_TRIPLET:
     n = math.ceil(math.sqrt(BATCH_SIZE))
     fig, ax = plt.subplots(nrows=n, ncols=n)
     [axi.set_axis_off() for axi in ax.ravel()]
@@ -199,47 +123,47 @@ if NETWORK_TYPE == OHNM_TRIPLET:
                 break_out = True
                 break
             col.imshow(samples[ix].reshape(IMG_SHAPE) + 0.5)
-            if USE_DATASET == FISH:
+            if USE_DATASET == const.FISH:
                 col.text(0, 0, str(classes[labels[ix]]))
     plt.show()
-if NETWORK_TYPE == SIAMESE_TRIPLET:
+if NETWORK_TYPE == const.SIAMESE_TRIPLET:
     fig, ax = plt.subplots(nrows=3, ncols=4)
     [axi.set_axis_off() for axi in ax.ravel()]
     for i, row in enumerate(ax):
         row[0].imshow(samples[0][i].reshape(IMG_SIZE, IMG_SIZE, 3) + 0.5)
         row[1].imshow(samples[1][i].reshape(IMG_SIZE, IMG_SIZE, 3) + 0.5)
         row[2].imshow(samples[2][i].reshape(IMG_SIZE, IMG_SIZE, 3) + 0.5)
-        if USE_DATASET == FISH:
+        if USE_DATASET == const.FISH:
             row[3].text(0, 0.5, str(classes[labels[i]]))
     plt.show()
 
 # Select and compile model
-if NETWORK_TYPE == SIAMESE_BINARY:
+if NETWORK_TYPE == const.SIAMESE_BINARY:
     model = models.siamese_network_binary
     embedding_model = models.embedding_network_binary
     loss = "binary_crossentropy"
     model.compile(tf.keras.optimizers.Adam(1e-3),
                   loss=loss,
                   metrics=[above_threshold])
-if NETWORK_TYPE == SIAMESE_CONTRASTIVE:
+if NETWORK_TYPE == const.SIAMESE_CONTRASTIVE:
     model = models.siamese_network_contrastive
     embedding_model = models.embedding_network_contrastive
     loss = tfa.losses.contrastive_loss
     model.compile(tf.keras.optimizers.Adam(1e-3),
                   loss=loss)
-if NETWORK_TYPE == SIAMESE_NTXENT:
+if NETWORK_TYPE == const.SIAMESE_NTXENT:
     model = models.siamese_network_ntxent
     embedding_model = models.embedding_network_ntxent
     loss = ntxent_loss
     model.compile(tf.keras.optimizers.Adam(1e-3),
                   loss=loss)
-if NETWORK_TYPE == SIAMESE_TRIPLET:
+if NETWORK_TYPE == const.SIAMESE_TRIPLET:
     model = models.siamese_network_triplet
     embedding_model = models.embedding_network_triplet
     loss = triplet_loss
     model.compile(tf.keras.optimizers.Adam(1e-3),
                   loss=loss)
-if NETWORK_TYPE == OHNM_TRIPLET:
+if NETWORK_TYPE == const.OHNM_TRIPLET:
     model = models.triplet_network_ohnm
     embedding_model = models.triplet_network_ohnm
     loss = tfa.losses.TripletHardLoss(MARGIN)
@@ -262,7 +186,7 @@ class CustomCallback(tf.keras.callbacks.Callback):
 
         if CHECKPOINT_AFTER:
             if epoch % CHECKPOINT_AFTER == 0:
-                model.save_weights("models/checkpoint_" + str(epoch))
+                model.save_weights("../models/checkpoint_" + str(epoch))
 
         if epoch % 5 == 0:
             # return
@@ -295,20 +219,20 @@ if RETRAIN:
             for layer in inner_layer.layers[point:]:
                 layer.trainable = True
 
-        if NETWORK_TYPE == SIAMESE_BINARY:
+        if NETWORK_TYPE == const.SIAMESE_BINARY:
             model.compile(tf.keras.optimizers.Adam(lr),
                           loss=loss,
                           metrics=[above_threshold])
-        if NETWORK_TYPE == SIAMESE_CONTRASTIVE:
+        if NETWORK_TYPE == const.SIAMESE_CONTRASTIVE:
             model.compile(tf.keras.optimizers.Adam(lr),
                           loss=loss)
-        if NETWORK_TYPE == SIAMESE_NTXENT:
+        if NETWORK_TYPE == const.SIAMESE_NTXENT:
             model.compile(tf.keras.optimizers.Adam(lr),
                           loss=loss)
-        if NETWORK_TYPE == SIAMESE_TRIPLET:
+        if NETWORK_TYPE == const.SIAMESE_TRIPLET:
             model.compile(tf.keras.optimizers.Adam(lr),
                           loss=loss)
-        if NETWORK_TYPE == OHNM_TRIPLET:
+        if NETWORK_TYPE == const.OHNM_TRIPLET:
             model.compile(tf.keras.optimizers.Adam(lr),
                           loss=loss)
 
@@ -317,35 +241,35 @@ if RETRAIN:
                   validation_steps=test_steps, callbacks=[CustomCallback()])
 
     # Save model after training
-    model.save_weights('./models/contrastive')
-    if DATASET_FLAVOUR == FISH_PAIR_LEFT:
-        embedding_model.save_weights('./models/left')
-    elif DATASET_FLAVOUR == FISH_PAIR_RIGHT:
-        embedding_model.save_weights('./models/right')
+    model.save_weights('../models/contrastive')
+    if DATASET_FLAVOUR == const.FISH_PAIR_LEFT:
+        embedding_model.save_weights('../models/left')
+    elif DATASET_FLAVOUR == const.FISH_PAIR_RIGHT:
+        embedding_model.save_weights('../models/right')
     else:
-        embedding_model.save_weights('./models/embedding')
+        embedding_model.save_weights('../models/embedding')
 else:
-    model.load_weights('./models/contrastive')
+    model.load_weights('../models/contrastive')
 
 model.evaluate(test_batch, steps=test_steps)
 
 # Show examples of predictions
 samples, labels = next(test_batch)
 prediction = model.predict(samples)
-if NETWORK_TYPE in [SIAMESE_BINARY, SIAMESE_CONTRASTIVE]:
+if NETWORK_TYPE in [const.SIAMESE_BINARY, const.SIAMESE_CONTRASTIVE]:
     fig, ax = plt.subplots(nrows=3, ncols=3)
     [axi.set_axis_off() for axi in ax.ravel()]
     for i, row in enumerate(ax):
         row[0].imshow(samples[0][i].reshape(IMG_SHAPE) + 0.5)
         row[1].imshow(samples[1][i].reshape(IMG_SHAPE) + 0.5)
-        if NETWORK_TYPE == SIAMESE_BINARY:
+        if NETWORK_TYPE == const.SIAMESE_BINARY:
             row[2].text(0, 0, "Pred: " + str(prediction[i][0]) + "(" + str(prediction[i][0] > 0.5) + ")")
             row[2].text(0, 0.5, "Label: " + str(labels[i]))
-        if NETWORK_TYPE in [SIAMESE_CONTRASTIVE]:
+        if NETWORK_TYPE in [const.SIAMESE_CONTRASTIVE]:
             row[2].text(0, 0, "Pred: " + str(prediction[i]))
             row[2].text(0, 0.5, "Label: " + str(labels[i]))
     plt.show()
-if NETWORK_TYPE == SIAMESE_TRIPLET:
+if NETWORK_TYPE == const.SIAMESE_TRIPLET:
     fig, ax = plt.subplots(nrows=3, ncols=4)
     [axi.set_axis_off() for axi in ax.ravel()]
     for i, row in enumerate(ax):
@@ -359,7 +283,7 @@ if NETWORK_TYPE == SIAMESE_TRIPLET:
         row[3].text(0, 0, "Dist: " + str(dist))
         row[3].text(0, 0.5, "Label: " + str(labels[i]))
     plt.show()
-if NETWORK_TYPE == OHNM_TRIPLET:
+if NETWORK_TYPE == const.OHNM_TRIPLET:
     collected = []
     for i in range(100):
         batch = samples, labels

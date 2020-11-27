@@ -8,9 +8,8 @@ from PIL import Image
 import numpy as np
 from keras_preprocessing.image import ImageDataGenerator
 import imgaug.augmenters as iaa
-
-from data import resize_padding, define_simclr_train_test_generators, \
-    define_ohnm_train_test_generators
+from data import resize_padding
+from preprocessing.ohnm import define_ohnm_train_test_generators
 from config import IMG_SIZE
 import matplotlib.pyplot as plt
 

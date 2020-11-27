@@ -4,11 +4,7 @@ Tests different aspects of the system.
 
 import glob
 import os
-from data import get_images, gen_pairs_n
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 
-DATASET_DIR = '../data/dataset_new/cropped_head/direction_left'
 DATASET_DIR = '../data/dataset_new'
 
 
@@ -33,14 +29,6 @@ def test_annotations():
                 print(txt_file, "body is not second")
 
 
-def test_get_conv_layers():
-    from utils import get_conv_layers
-    from models import embedding_network_contrastive
-    conv_layers = get_conv_layers(embedding_network_contrastive)
-    print(len(conv_layers))
-
-
-#test_get_conv_layers()
 #test_pair_generation()
 #test_lonely_annotations()
 

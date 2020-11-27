@@ -8,14 +8,14 @@ from config import IMG_SIZE, DESCRIPTOR_SIZE, IMG_SHAPE
 
 def define_direction_detector():
     input = tf.keras.layers.Input((IMG_SIZE, IMG_SIZE, 3))
-    vgg16_layer = tf.keras.applications.InceptionV3(
+    inception_layer = tf.keras.applications.InceptionV3(
         include_top=False,
         weights='imagenet',
         input_shape=(IMG_SIZE, IMG_SIZE, 3)
     )
-    vgg16_layer.trainable = False
-    vgg16_batch = vgg16_layer(input)
-    model = tf.keras.layers.GlobalAveragePooling2D()(vgg16_batch)
+    inception_layer.trainable = False
+    inception_batch = inception_layer(input)
+    model = tf.keras.layers.GlobalAveragePooling2D()(inception_batch)
     model = tf.keras.layers.Dense(32, activation='relu')(model)
     model = tf.keras.layers.Dense(1, activation='sigmoid')(model)
     model = tf.keras.Model(inputs=input, outputs=model)
@@ -24,14 +24,14 @@ def define_direction_detector():
 
 def define_region_detector():
     input = tf.keras.layers.Input(IMG_SHAPE)
-    vgg16_layer = tf.keras.applications.InceptionV3(
+    inception_layer = tf.keras.applications.InceptionV3(
         include_top=False,
         weights=None,
         input_shape=IMG_SHAPE
     )
-    vgg16_layer.trainable = False
-    vgg16_batch = vgg16_layer(input)
-    model = tf.keras.layers.GlobalAveragePooling2D()(vgg16_batch)
+    inception_layer.trainable = False
+    inception_batch = inception_layer(input)
+    model = tf.keras.layers.GlobalAveragePooling2D()(inception_batch)
     model = tf.keras.layers.Dropout(0.5)(model)
     model = tf.keras.layers.Dense(2048, activation=tf.nn.relu)(model)
     model = tf.keras.layers.Dense(4, activation=tf.nn.sigmoid)(model)
@@ -110,7 +110,6 @@ def define_siamese_triplet_network():
     cnn_part = tf.keras.models.Sequential([
         inception_layer,
         tf.keras.layers.GlobalAveragePooling2D(),
-        # tf.keras.layers.Dense(128, activation=tf.nn.relu),
         tf.keras.layers.Dense(DESCRIPTOR_SIZE, activation=None),
         tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1))
     ], name="cnn_part")
@@ -140,8 +139,6 @@ def define_ohnm_triplet_network():
     inception_layer.trainable = False
 
     model = tf.keras.layers.GlobalAveragePooling2D()(inception_layer.layers[132].output)
-    #model = tf.keras.layers.GlobalAveragePooling2D()(inception_layer.layers[196].output)
-    #model = tf.keras.layers.Dropout(0.05)(model)
     model = tf.keras.layers.Dense(DESCRIPTOR_SIZE, activation=None)(model)
     model = tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1))(model)
     triplet_network = tf.keras.Model(inception_layer.input, model)

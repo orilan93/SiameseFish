@@ -1,6 +1,7 @@
 """
 Script that preprocesses the dataset such that it is ready for training.
 Generally each part of the program preprocesses the input and puts it into subdirectories.
+Note: It is recommended to understand the code before running this script as it will do file operations.
 
 COPY_FILES: Filters files that is deemed useful and stores them in a directory.
 CROP_FILES: Crops images based on meta files.
@@ -15,7 +16,7 @@ EXTRACT_NEWEST: Extracts the samples after a given date.
 import os
 import glob
 from shutil import copy2
-from PIL import Image, ExifTags
+from PIL import Image
 from collections import defaultdict
 import random
 import pandas as pd

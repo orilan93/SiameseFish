@@ -1,8 +1,8 @@
 """
-A simple CNN classifier that classifies an image directly into an individual.
+A simple CNN classifier that classifies individuals from images.
 """
 
-from data import get_images
+from data import load_images
 from config import IMG_SIZE
 import numpy as np
 import tensorflow as tf
@@ -14,7 +14,7 @@ DATASET_DIR = "../data/dataset/cropped_head/direction"
 with open("../data/classes_direction.txt") as file:
     classes = [line.strip() for line in file]
 
-X, y = get_images(DATASET_DIR, classes, IMG_SIZE)
+X, y = load_images(DATASET_DIR, classes, IMG_SIZE)
 
 X = np.array(X)
 X = tf.keras.applications.inception_v3.preprocess_input(X)

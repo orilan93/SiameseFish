@@ -3,7 +3,7 @@ A multilayer perceptron classifier for embeddings.
 """
 
 import models
-from data import get_images, IMG_SIZE, get_embeddings
+from data import load_images, IMG_SIZE, get_embeddings
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
@@ -19,14 +19,14 @@ if SAVE_EMBEDDINGS:
     with open("../data/classes_condensed.txt") as file:
         classes = [line.strip() for line in file]
 
-    X, y = get_images(DATASET_DIR, classes, IMG_SIZE)
+    X, y = load_images(DATASET_DIR, classes, IMG_SIZE)
 
     X = np.array(X)
     X = tf.keras.applications.inception_v3.preprocess_input(X)
     y = np.array(y)
 
     embedding_model = models.embedding_network_contrastive
-    embedding_model.load_weights('./models/embedding')
+    embedding_model.load_weights('../models/embedding')
     X_embeddings, y_embeddings = get_embeddings(embedding_model, X, y)
 
     columns = ["x" + str(i) for i in range(64)] + ["y"]

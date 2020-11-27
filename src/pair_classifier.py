@@ -1,45 +1,21 @@
 """
 A classifier that uses both the left and the right view of the fish to determine the individual.
 """
-import os
 import numpy as np
 import tensorflow as tf
-from data import get_images, get_embeddings
-from config import IMG_SIZE, DESCRIPTOR_SIZE
+from data import get_embeddings, load_dataset
+from config import DESCRIPTOR_SIZE
 import models
 import pandas as pd
-from scipy.spatial import distance
 from sklearn.metrics import accuracy_score, f1_score
 import random
 import metrics
-from predictions import show_accuracy_curve
+from predictions import show_accuracy_curve, predict_k
+import const
 
 # Configs
 DISTANCE_METRIC = 'euclidean'
 IGNORE_NEW_OBSERVATIONS = True
-
-DATASET_DIR_LEFT = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'left')
-DATASET_DIR_RIGHT = os.path.join('..', 'data', 'merged', 'head', 'Oct', 'right')
-# DATASET_DIR_LEFT = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_left')
-# DATASET_DIR_RIGHT = os.path.join('..', 'data', 'dataset', 'cropped_head', 'direction_right')
-with open("../data/classes.txt") as file:
-    classes = [line.strip() for line in file]
-
-
-def load_dataset(dir, classes):
-    """Loads a dataset from a directory and return train/test split."""
-
-    X_train, y_train = get_images(os.path.join(dir, "train"), classes, IMG_SIZE, direction_labels=False)
-    X_train = np.array(X_train)
-    X_train = tf.keras.applications.inception_v3.preprocess_input(X_train)
-    y_train = np.array(y_train)
-
-    X_test, y_test = get_images(os.path.join(dir, "test"), classes, IMG_SIZE, direction_labels=False)
-    X_test = np.array(X_test)
-    X_test = tf.keras.applications.inception_v3.preprocess_input(X_test)
-    y_test = np.array(y_test)
-
-    return X_train, y_train, X_test, y_test
 
 
 def remove_from_test(x_test_left, y_test_left, x_test_right, y_test_right, y_train_left, y_train_right):
@@ -75,23 +51,7 @@ def create_dataframe(model, x_train, y_train):
     return df
 
 
-def predict(model, df, x_test):
-    """Predicts a batch of images given an embedding model and support set."""
-    embeddings = model.predict(x_test)
-    y_list = []
-    for i, embedding in enumerate(embeddings):
-        if DISTANCE_METRIC == 'euclidean':
-            df['distance'] = np.linalg.norm(df.iloc[:, :DESCRIPTOR_SIZE].sub(embedding), axis=1)
-        elif DISTANCE_METRIC == 'cosine':
-            df['distance'] = df.apply(lambda row: distance.cosine(embedding, row[:DESCRIPTOR_SIZE]), axis=1)
-        df_sorted = df.copy()
-        df_sorted = df_sorted.sort_values(by='distance', ignore_index=True)
-        k_best = df_sorted['y'].tolist()
-        y_list.append(k_best)
-    return np.array(y_list)
-
-
-def rank(y, predictions):
+def rank(y, predictions):  # TODO: Duplicate code?
     """Gets the position of y in the predictions list, or -1 if it does not exist."""
     if y in predictions:
         rank = list(predictions).index(y)
@@ -148,14 +108,15 @@ def pair_predict(pred_left, pred_right, classes):
 
 # Load models
 left_model = models.triplet_network_ohnm
-left_model.load_weights('./models/left')
+left_model.load_weights('../models/left')
 # Cloning is necessary or else it will just overwrite the other model
 right_model = tf.keras.models.clone_model(models.triplet_network_ohnm)
-right_model.load_weights('./models/right')
+right_model.load_weights('../models/right')
 
 # Load datasets
-X_train_left, y_train_left, X_test_left, y_test_left = load_dataset(DATASET_DIR_LEFT, classes)
-X_train_right, y_train_right, X_test_right, y_test_right = load_dataset(DATASET_DIR_RIGHT, classes)
+X_train_left, y_train_left, X_test_left, y_test_left, classes = load_dataset(const.FISH_MERGED_LEFT, preprocess=True)
+X_train_right, y_train_right, X_test_right, y_test_right, classes = load_dataset(const.FISH_MERGED_RIGHT,
+                                                                                 preprocess=True)
 
 # Remove from test set if class doesn't exist in train set
 X_test_left, y_test_left, X_test_right, y_test_right = remove_from_test(
@@ -176,8 +137,10 @@ y_test = y_test_right
 print("Support set size: {}".format(len(df_left)))
 
 # Get predictions for both sides
-predictions_left = predict(left_model, df_left, X_test_left)
-predictions_right = predict(right_model, df_right, X_test_right)
+# predictions_left = predict(left_model, df_left, X_test_left)
+# predictions_right = predict(right_model, df_right, X_test_right)
+predictions_left = predict_k(left_model, df_left, X_test_left, k=-1, predict_new=False)
+predictions_right = predict_k(right_model, df_right, X_test_right, k=-1, predict_new=False)
 
 # Get accuracies for individual sides
 accuracy_left = accuracy_score(y_test, [y[0] for y in predictions_left])
