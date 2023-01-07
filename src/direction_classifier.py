@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from config import IMG_SIZE
 
-DATA_DIR = os.path.join("..", "data", "quad", "first_batch")
-DATASET_DIR = os.path.join(DATA_DIR, "cropped")
+DATA_DIR = os.path.join("..", "..", "data")
+DATASET_DIR = os.path.join(DATA_DIR, "dataset", "cropped_head")
 DIRECTION_FILE = os.path.join(DATA_DIR, "direction.txt")
-RETRAIN = False
+RETRAIN = True
 
 directions = dict()
 
@@ -70,9 +70,9 @@ model.compile(optimizer='adam',
 if RETRAIN:
     model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test))
 
-    model.save_weights('../models/direction_quad')
+    model.save_weights('../models/direction_cropped')
 else:
-    model.load_weights('../models/direction_quad')
+    model.load_weights('../models/direction_cropped')
 
 model.evaluate(X_test, y_test)
 

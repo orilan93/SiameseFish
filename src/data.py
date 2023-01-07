@@ -66,7 +66,7 @@ def load_images(path, classes, image_size, greyscale=False, direction_labels=Tru
 
         X.append(pil_img)
         y.append(index)
-        filenames.append(basename_wo_ext)
+        filenames.append(basename)
     if include_filenames:
         return X, y, filenames
     else:
@@ -87,7 +87,7 @@ def load_dataset(dataset_flavour, preprocess=False, greyscale=False, include_fil
         """
 
     direction_labels = True
-    if dataset_flavour in [const.FISH_PAIR_LEFT, const.FISH_PAIR_RIGHT, const.FISH_MERGED_LEFT, const.FISH_MERGED_RIGHT]:
+    if dataset_flavour in [const.FISH_MERGED_PAIR_LEFT, const.FISH_MERGED_PAIR_RIGHT, const.FISH_MERGED_LEFT, const.FISH_MERGED_RIGHT, const.FISH_HEAD_PAIR_LEFT, const.FISH_HEAD_PAIR_RIGHT]:
         direction_labels = False
 
     format = "jpg"
@@ -114,13 +114,23 @@ def load_dataset(dataset_flavour, preprocess=False, greyscale=False, include_fil
         with open("../../data/classes_direction_right.txt") as file:
             classes = [line.strip() for line in file]
 
-    if dataset_flavour == const.FISH_PAIR_LEFT:
+    if dataset_flavour == const.FISH_MERGED_PAIR_LEFT:
         DATASET_DIR = os.path.join('..', '..', 'data', 'merged', 'head', 'Oct', 'left')
         with open("../../data/classes.txt") as file:
             classes = [line.strip() for line in file]
 
-    if dataset_flavour == const.FISH_PAIR_RIGHT:
+    if dataset_flavour == const.FISH_MERGED_PAIR_RIGHT:
         DATASET_DIR = os.path.join('..', '..', 'data', 'merged', 'head', 'Oct', 'right')
+        with open("../../data/classes.txt") as file:
+            classes = [line.strip() for line in file]
+
+    if dataset_flavour == const.FISH_HEAD_PAIR_LEFT:
+        DATASET_DIR = os.path.join('..', '..', 'data', 'dataset', 'cropped_head', 'direction_left')
+        with open("../../data/classes.txt") as file:
+            classes = [line.strip() for line in file]
+
+    if dataset_flavour == const.FISH_HEAD_PAIR_RIGHT:
+        DATASET_DIR = os.path.join('..', '..', 'data', 'dataset', 'cropped_head', 'direction_right')
         with open("../../data/classes.txt") as file:
             classes = [line.strip() for line in file]
 

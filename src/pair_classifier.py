@@ -16,6 +16,7 @@ import const
 # Configs
 DISTANCE_METRIC = 'euclidean'
 IGNORE_NEW_OBSERVATIONS = True
+CLASSIFICATION_METHOD = 'rank'  # rank, distance
 
 
 def remove_from_test(x_test_left, y_test_left, x_test_right, y_test_right, y_train_left, y_train_right):
@@ -106,16 +107,44 @@ def pair_predict(pred_left, pred_right, classes):
     return y_list
 
 
+def pair_predict_distance(left_model, right_model, df_left, df_right, X_test_left, X_test_right):
+    left_embeddings = left_model.predict(X_test_left)
+    right_embeddings = right_model.predict(X_test_right)
+
+    df = pd.concat([df_left, df_right])
+
+    y_pred = []
+
+    cnt = 0
+    for left_emb, right_emb in zip(left_embeddings, right_embeddings):
+        print(str(cnt) + "/" + str(len(left_emb)) + "\r")
+        cnt+= 1
+
+        y_list = []
+
+        for i, ref in df.iterrows():
+            dist_left = np.linalg.norm(ref.iloc[:DESCRIPTOR_SIZE].sub(left_emb))
+            dist_right = np.linalg.norm(ref.iloc[:DESCRIPTOR_SIZE].sub(right_emb)) # TODO: OMG FEIL!!
+            dist_sqr = (dist_left + dist_right)**2
+            # TODO: må optimaliseres
+            y_list.append((ref["y"], dist_sqr))
+
+        y_list = sorted(y_list, key=lambda x: x[1])
+        y_pred.append([tup[0] for tup in y_list])
+    print("\n")
+    return np.array(y_pred)
+
+
 # Load models
 left_model = models.triplet_network_ohnm
-left_model.load_weights('../models/left')
+left_model.load_weights('../models/head_left')
 # Cloning is necessary or else it will just overwrite the other model
 right_model = tf.keras.models.clone_model(models.triplet_network_ohnm)
-right_model.load_weights('../models/right')
+right_model.load_weights('../models/head_right')
 
 # Load datasets
-X_train_left, y_train_left, X_test_left, y_test_left, classes = load_dataset(const.FISH_MERGED_LEFT, preprocess=True)
-X_train_right, y_train_right, X_test_right, y_test_right, classes = load_dataset(const.FISH_MERGED_RIGHT,
+X_train_left, y_train_left, X_test_left, y_test_left, classes = load_dataset(const.FISH_HEAD_PAIR_LEFT, preprocess=True)
+X_train_right, y_train_right, X_test_right, y_test_right, classes = load_dataset(const.FISH_HEAD_PAIR_RIGHT,
                                                                                  preprocess=True)
 
 # Remove from test set if class doesn't exist in train set
@@ -136,24 +165,31 @@ y_test = y_test_right
 
 print("Support set size: {}".format(len(df_left)))
 
-# Get predictions for both sides
-# predictions_left = predict(left_model, df_left, X_test_left)
-# predictions_right = predict(right_model, df_right, X_test_right)
-predictions_left = predict_k(left_model, df_left, X_test_left, k=-1, predict_new=False)
-predictions_right = predict_k(right_model, df_right, X_test_right, k=-1, predict_new=False)
 
-# Get accuracies for individual sides
-accuracy_left = accuracy_score(y_test, [y[0] for y in predictions_left])
-accuracy_right = accuracy_score(y_test, [y[0] for y in predictions_right])
-print("Accuracy left: {}, Accuracy right: {}".format(accuracy_left, accuracy_right))
+if CLASSIFICATION_METHOD == 'rank':
 
-# Get predictions when using both sides
-y_pred = np.array(pair_predict(predictions_left, predictions_right, classes))
+    # Get predictions for both sides
+    # predictions_left = predict(left_model, df_left, X_test_left)
+    # predictions_right = predict(right_model, df_right, X_test_right)
+    predictions_left = predict_k(left_model, df_left, X_test_left, k=-1, predict_new=False)
+    predictions_right = predict_k(right_model, df_right, X_test_right, k=-1, predict_new=False)
 
-# Slice away unused values
-y_pred = y_pred[:, :len(df_left)]
-assert (not (y_pred == -1).any())
-print("Prediction set shape: {}".format(y_pred.shape))
+    # Get accuracies for individual sides
+    accuracy_left = accuracy_score(y_test, [y[0] for y in predictions_left])
+    accuracy_right = accuracy_score(y_test, [y[0] for y in predictions_right])
+    print("Accuracy left: {}, Accuracy right: {}".format(accuracy_left, accuracy_right))
+
+    # Get predictions when using both sides
+    y_pred = np.array(pair_predict(predictions_left, predictions_right, classes))
+
+    # Slice away unused values
+    y_pred = y_pred[:, :len(df_left)]
+    assert (not (y_pred == -1).any())
+    print("Prediction set shape: {}".format(y_pred.shape))
+
+else:
+    y_pred = pair_predict_distance(left_model, right_model, df_left, df_right, X_test_left, X_test_right)
+
 first_predictions = y_pred[:, 0]
 
 # TODO: Handle rank=-1 cases better
@@ -174,8 +210,8 @@ for i in range(4):
 
     r = random.randint(0, len(y_test_left))
 
-    prediction_right = predict(right_model, df_right, np.expand_dims(X_test_right[r], 0))
-    prediction_left = predict(left_model, df_left, np.expand_dims(X_test_left[r], 0))
+    prediction_right = predict_k(right_model, df_right, np.expand_dims(X_test_right[r], 0))
+    prediction_left = predict_k(left_model, df_left, np.expand_dims(X_test_left[r], 0))
 
     y_pred = pair_predict(prediction_right, prediction_left, classes)[0]
     gt = classes[y_test_left[r]]

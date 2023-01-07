@@ -26,7 +26,7 @@ MARGIN = 1.0  # 0.2 # 1.0
 GREYSCALE = False
 NETWORK_TYPE = const.OHNM_TRIPLET
 USE_DATASET = const.FISH
-DATASET_FLAVOUR = const.FISH_MERGED
+DATASET_FLAVOUR = const.FISH_HEAD
 CONTINUE = None  # 'models/model_500' # NONE
 CHECKPOINT_AFTER = 100  # None
 
@@ -38,7 +38,8 @@ CHECKPOINT_AFTER = 100  # None
 # fine_tuning = [(None, 10, 1e-3), (293, 40, 1e-4)]
 # fine_tuning = [(None, 1000, 1e-3), (86, 500, 1e-4), (63, 500, 1e-4)]
 # fine_tuning = [(86, 100, 1e-4), (63, 100, 1e-4)]
-fine_tuning = [(86, 100, 1e-3)]
+# fine_tuning = [(86, 100, 1e-3)]
+fine_tuning = [(63, 100, 1e-3), (63, 100, 1e-5)]
 
 # Imgaug augmentations
 imgaug_augmentor = iaa.Sequential([
@@ -242,10 +243,14 @@ if RETRAIN:
 
     # Save model after training
     model.save_weights('../models/contrastive')
-    if DATASET_FLAVOUR == const.FISH_PAIR_LEFT:
-        embedding_model.save_weights('../models/left')
-    elif DATASET_FLAVOUR == const.FISH_PAIR_RIGHT:
-        embedding_model.save_weights('../models/right')
+    if DATASET_FLAVOUR == const.FISH_MERGED_PAIR_LEFT:
+        embedding_model.save_weights('../models/merged_left')
+    elif DATASET_FLAVOUR == const.FISH_MERGED_PAIR_RIGHT:
+        embedding_model.save_weights('../models/merged_right')
+    elif DATASET_FLAVOUR == const.FISH_HEAD_PAIR_LEFT:
+        embedding_model.save_weights('../models/head_left')
+    elif DATASET_FLAVOUR == const.FISH_HEAD_PAIR_RIGHT:
+        embedding_model.save_weights('../models/head_right')
     else:
         embedding_model.save_weights('../models/embedding')
 else:

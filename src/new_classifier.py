@@ -13,10 +13,10 @@ from sklearn.metrics import f1_score, accuracy_score, classification_report
 
 # Configs
 THRESHOLD = 0.4
-RETRAIN = True
 DEMO = False
 USE_DATASET = const.FISH
-DATASET_FLAVOUR = const.FISH_MERGED
+DATASET_FLAVOUR = const.FISH_HEAD
+SCORE_FUNCTION = 'F1'  # F1, TPR
 
 model = models.triplet_network_ohnm
 model.load_weights('../models/embedding')
@@ -70,25 +70,32 @@ def evaluate(x, y, report=False):
     prediction = predict(x, y)
     new_count = prediction.count(-1)
     accuracy = accuracy_score(y, prediction)
-    f1 = f1_score(y, prediction, average='macro')
-    print("Accuracy: ", accuracy, "\tF1: ", f1, "\t New: ", new_count)
+    if SCORE_FUNCTION == 'F1':
+        score = f1_score(y, prediction, average='macro')
+    if SCORE_FUNCTION == 'TPR':
+        true_count = dict(zip(*np.unique(y, return_counts=True)))[-1]
+        gt = y.copy()
+        gt[gt == 1] = 0
+        true_positive = (np.array(prediction) == gt).sum()
+        score = true_positive / true_count
+    print("Accuracy: ", accuracy, "\t", SCORE_FUNCTION, ": ", score, "\t New: ", new_count)
     if report:
-        print(classification_report(y, prediction))  # , classes))
-    return accuracy, f1
+        print(classification_report(y, prediction))
+    return accuracy, score
 
 
-best_f1 = 0
+best_score = 0
 best_t = -1
-for t in [0.7, 0.8, 0.85, 0.9]:
+for t in np.arange(0.7, 0.85, 0.01):
     print("t = ", t)
     THRESHOLD = t
-    accuracy, f1 = evaluate(X_valid, y_valid)
-    if f1 > best_f1:
-        best_f1 = f1
+    accuracy, score = evaluate(X_valid, y_valid)
+    if score > best_score:
+        best_score = score
         best_t = t
     print("======================================")
 
 print("best t: ", best_t)
 
 THRESHOLD = best_t
-accuracy, f1 = evaluate(X_test, y_test)
+accuracy, score = evaluate(X_test, y_test)

@@ -54,7 +54,6 @@ def predict_k(model, df_embeddings, x_test, k=1, metric='euclidean', predict_new
     embeddings = model.predict(x_test)
 
     support_filename = []
-    support_filename_at_correct = []
     query_filename = []
     correct_filename = []
     y_pred = []
@@ -81,10 +80,9 @@ def predict_k(model, df_embeddings, x_test, k=1, metric='euclidean', predict_new
             if y_test is not None:
                 first_correct = df_sorted[df_sorted['y'] == y_test[i]]
                 correct_filename.append(first_correct["support_filename"].to_numpy()[0])
-                support_filename_at_correct.append(df_sorted[df_sorted["y"] == y_test[i]]["support_filename"].to_numpy()[0])
 
     if include_filenames:
-        return np.array(y_pred), np.array(query_filename), np.array(support_filename), np.array(correct_filename), np.array(support_filename_at_correct)
+        return np.array(y_pred), np.array(query_filename), np.array(support_filename), np.array(correct_filename)
     else:
         return np.array(y_pred)
 

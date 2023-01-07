@@ -15,27 +15,29 @@ import const
 import random
 
 # Configs
-BATCH_SIZE = 5
 THRESHOLD = 0.55
 DISTANCE_METRIC = 'euclidean'
 GREYSCALE = False
-RETRAIN = True
 DEMO = False
 USE_DATASET = const.FISH
-DATASET_FLAVOUR = const.FISH_MERGED
-IGNORE_NEW_OBSERVATIONS = False
+DATASET_FLAVOUR = const.FISH_HEAD
+IGNORE_NEW_OBSERVATIONS = True
 EXPORT_PREDICTIONS = False
-EXPORT_EMBEDDINGS = True
+EXPORT_EMBEDDINGS = False
 
-if IGNORE_NEW_OBSERVATIONS and EXPORT_PREDICTIONS:
-    raise NotImplemented
+if not IGNORE_NEW_OBSERVATIONS and EXPORT_PREDICTIONS:
+    raise NotImplementedError
 
 # Load model
 model = models.triplet_network_ohnm
-if DATASET_FLAVOUR in [const.FISH_PAIR_LEFT, const.FISH_MERGED_LEFT]:
+if DATASET_FLAVOUR in [const.FISH_MERGED_PAIR_LEFT, const.FISH_MERGED_LEFT]:
     model.load_weights('../models/left')
-elif DATASET_FLAVOUR in [const.FISH_PAIR_RIGHT, const.FISH_MERGED_RIGHT]:
+elif DATASET_FLAVOUR in [const.FISH_MERGED_PAIR_RIGHT, const.FISH_MERGED_RIGHT]:
     model.load_weights('../models/right')
+elif DATASET_FLAVOUR == const.FISH_HEAD_PAIR_LEFT:
+    model.load_weights('../models/head_left')
+elif DATASET_FLAVOUR == const.FISH_HEAD_PAIR_RIGHT:
+    model.load_weights('../models/head_right')
 else:
     model.load_weights('../models/embedding')
 
@@ -59,7 +61,6 @@ if IGNORE_NEW_OBSERVATIONS:
     X_test = np.delete(X_test, drop_indices, axis=0)
     y_test = np.delete(y_test, drop_indices, axis=0)
     test_filenames = np.delete(test_filenames, drop_indices, axis=0)
-    #filenames = np.delete(filenames, drop_indices, axis=0)
 
 if not IGNORE_NEW_OBSERVATIONS:
     # Need validation set for finding threshold
@@ -82,18 +83,19 @@ df = df.astype({"y": int})
 
 if EXPORT_EMBEDDINGS:
     X_embeddings_test, y_embeddings_test = get_embeddings(model, X_test, y_test)
-    columns = ["x" + str(i) for i in range(DESCRIPTOR_SIZE)] + ["y"]
-    df2 = pd.DataFrame(np.column_stack([X_embeddings_test, y_embeddings_test]), columns=columns)
+    columns = ["x" + str(i) for i in range(DESCRIPTOR_SIZE)] + ["y", "filename"]
+    df2 = pd.DataFrame(np.column_stack([X_embeddings_test, y_embeddings_test, test_filenames]), columns=columns)
     df2 = df2.astype({"y": int})
-    df2["set"] = "test"
+    df2["set"] = "query"
     df3 = df.copy()
-    df3["set"] = "train"
+    df3 = df3.rename(columns={"support_filename": "filename"})
+    df3["set"] = "support"
     df2 = pd.concat([df2, df3])
     df2.to_csv("embeddings.csv", index=False)
 
 # Find best threshold
 if not IGNORE_NEW_OBSERVATIONS:  # Thresholds only makes sense if predicting new observations
-    best_f1 = 0
+    best = 0
     best_t = -1
     for t in [0.7, 0.75, 0.8, 0.85, 0.9]:
         print("t = ", t)
@@ -102,8 +104,8 @@ if not IGNORE_NEW_OBSERVATIONS:  # Thresholds only makes sense if predicting new
         accuracy = accuracy_score(y_test, y_pred[:, 0])
         f1 = f1_score(y_test, y_pred[:, 0], average='macro')
         print("Accuracy: ", accuracy, "\tF1: ", f1, "\tNew: ", new_count)
-        if f1 > best_f1:
-            best_f1 = f1
+        if accuracy > best:
+            best = accuracy
             best_t = t
         print("======================================")
     print("best t: ", best_t)
@@ -115,16 +117,15 @@ prediction_result = predict_k(model, df, X_test, k=len(df), metric=DISTANCE_METR
                               predict_new=not IGNORE_NEW_OBSERVATIONS, threshold=best_t,
                               include_filenames=True, y_test=y_test, test_filenames=test_filenames)
 # Unpack results
-y_pred, query_filename, support_filename, correct_filename, support_filename_at_correct = prediction_result
+y_pred, query_filename, support_filename, correct_filename = prediction_result
 
 if EXPORT_PREDICTIONS:
     ranks = rank(y_pred, y_test)
     columns = ["filename"] + ["p" + str(i + 1) for i in range(len(df))] + ["support_filename", "query_filename",
-                                                                           "correct_filename", "support_filename_at_correct",
-                                                                           "rank", "y"]
+                                                                           "correct_filename", "rank", "y"]
     df_pred = pd.DataFrame(
-        np.column_stack((test_filenames, y_pred, support_filename, query_filename, correct_filename,
-                         support_filename_at_correct, ranks, y_test)), columns=columns)
+        np.column_stack((test_filenames, y_pred, support_filename, query_filename, correct_filename, ranks, y_test)),
+        columns=columns)
     df_pred.to_csv("predictions.csv", index=False)
 
 # Evaluate results
